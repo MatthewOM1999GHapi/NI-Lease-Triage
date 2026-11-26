@@ -251,7 +251,12 @@ with st.sidebar:
 
     st.divider()
     st.header("⚙️ Demo Mode Settings")
-    api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
+ api_key = os.environ.get("GEMINI_API_KEY", "")
+if not api_key:
+    try:
+        api_key = st.secrets.get("GEMINI_API_KEY", "")
+    except Exception:
+        api_key = ""
     demo_fallback = st.toggle(
         "Offline Demo Fallback Mode",
         value=not bool(api_key),
