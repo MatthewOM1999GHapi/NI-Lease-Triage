@@ -228,9 +228,7 @@ st.title("🏢 Commercial Lease & Rent-Review Risk Triage")
 st.caption(
     "Prototype Valuation Prep Tool (Northern Ireland Context) • Built to support early-stage surveyor due diligence"
 )
-
-# Sidebar: Governance, Privacy & Settings
-with st.sidebar:
+    with st.sidebar:
     st.header("🛡️ Data Governance & Privacy")
     enable_redaction = st.toggle(
         "Auto-Redact Client & Property Names",
@@ -251,18 +249,17 @@ with st.sidebar:
 
     st.divider()
     st.header("⚙️ Demo Mode Settings")
- api_key = os.environ.get("GEMINI_API_KEY", "")
-if not api_key:
-    try:
-        api_key = st.secrets.get("GEMINI_API_KEY", "")
-    except Exception:
-        api_key = ""
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        try:
+            api_key = st.secrets.get("GEMINI_API_KEY", "")
+        except Exception:
+            api_key = ""
     demo_fallback = st.toggle(
         "Offline Demo Fallback Mode",
         value=not bool(api_key),
         help="Uses pre-computed sample output if no API key is configured or internet is unavailable.",
     )
-
 # Main Two-Column Workspace
 col_input, col_output = st.columns([1, 1.25], gap="large")
 
