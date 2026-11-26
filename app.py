@@ -8,7 +8,7 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------
-# 1. PAGE CONFIG & STYLING
+# 1. PAGE CONFIG
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="NI Commercial Lease & Valuation Risk Triage",
@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. STRUCTURED OUTPUT SCHEMA (PYDANTIC)
+# 2. STRUCTURED OUTPUT SCHEMA
 # ---------------------------------------------------------
 class ClauseRisk(BaseModel):
     category: str = Field(
@@ -53,7 +53,7 @@ SAMPLE_LEASES = {
 Landlord: Lagan Harbour Developments Ltd
 Tenant: Ulster Freight & Logistics (NI) Ltd
 Demise: Detached warehouse of 18,500 sq ft GIA with concrete service yard.
-Term: 10 years from 1 May 2024, contracted inside the Business Tenancies (Northern Ireland) Order 1996.
+Term: 10 years from 1 May 2024, governed by the Business Tenancies (Northern Ireland) Order 1996.
 Break Option: Tenant-only option to determine on 1 May 2027 (Year 3) upon giving not less than 6 months' prior written notice, conditional upon payment of principal rent up to the break date and delivery of vacant possession. No break penalty payable.
 Passing Rent: £129,500 per annum exclusive (£7.00 per sq ft), payable quarterly in advance.
 Rent Review: Upward-only open market rent review at Year 5 (1 May 2029), assuming a willing landlord and willing tenant on a 5-year term, disregarding tenant's voluntary fit-out works.
@@ -81,20 +81,18 @@ Repair & Insurance: Internal repairing only for the Tenant; Landlord responsible
 }
 
 # ---------------------------------------------------------
-# 4. LOCAL PII & ENTITY REDACTOR (RUNS BEFORE API CALL)
+# 4. LOCAL PII & ENTITY REDACTOR
 # ---------------------------------------------------------
 def redact_sensitive_entities(text: str) -> tuple[str, list[str]]:
     """Strips company names, postcodes, and street numbers locally before external LLM processing."""
     redacted = text
     log = []
 
-    # Redact UK/NI Postcodes (e.g., BT3 9BP, BT1 5HD)
     postcode_pattern = r"\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b"
     if re.search(postcode_pattern, redacted, flags=re.IGNORECASE):
         redacted = re.sub(postcode_pattern, "[POSTCODE_REDACTED]", redacted, flags=re.IGNORECASE)
         log.append("UK/NI postcodes masked")
 
-    # Redact Company Names ending in Ltd, Limited, PLC, LLP
     company_pattern = r"\b[A-Z][A-Za-z0-9&\(\)\s\-]{2,45}?\b(?:Ltd|Limited|PLC|plc|LLP)\b\.?"
     companies = re.findall(company_pattern, redacted)
     for idx, comp in enumerate(dict.fromkeys(companies), start=1):
@@ -102,7 +100,6 @@ def redact_sensitive_entities(text: str) -> tuple[str, list[str]]:
     if companies:
         log.append(f"{len(set(companies))} corporate entity name(s) masked")
 
-    # Redact Street Numbers + Road/Street/Square/Estate names
     address_pattern = r"\b(?:\d+[A-Za-z]?|Unit\s+\d+)\s+[A-Z][A-Za-z\s]+(?:Road|Street|Square|Estate|Avenue|Lane|Park|Place|East|West|North|South)\b"
     if re.search(address_pattern, redacted):
         redacted = re.sub(address_pattern, "[PROPERTY_ADDRESS_REDACTED]", redacted)
@@ -112,61 +109,61 @@ def redact_sensitive_entities(text: str) -> tuple[str, list[str]]:
 
 
 # ---------------------------------------------------------
-# 5. OFFLINE FALLBACK DATA (IF API KEY NOT SET OR RATE-LIMITED)
+# 5. OFFLINE FALLBACK REPORT
 # ---------------------------------------------------------
 FALLBACK_REPORT = LeaseTriageReport(
     sector_detected="Industrial / Logistics (Northern Ireland)",
     headline_summary="10-year lease at £129,500 pax (£7.00/sq ft) with a major Year 3 tenant-only break option and a Schedule of Condition limiting roof repair liability.",
-    wault_and_income_note="Headline unexpired term is ~7.4 years, but the May 2027 tenant-only break compresses WAULT-to-break to under 6 months (subject to notice check). Valuers must capitalize to the break date unless strong evidence shows the tenant will remain.",
+    wault_and_income_note="Headline lease length is 10 years, but the May 2027 tenant-only break compresses income certainty to the break date unless strong evidence shows the tenant will remain.",
     net_effective_rent_note="Passing rent is £7.00/sq ft with no disclosed rent-free period in the extract; verify whether any separate side letter exists.",
     risk_items=[
         ClauseRisk(
             category="Term & Break Options",
             risk_level="High",
             source_quote="Tenant-only option to determine on 1 May 2027 (Year 3) upon giving not less than 6 months' prior written notice... No break penalty payable.",
-            valuation_impact="Creates immediate void and re-letting risk in May 2027; significantly increases equivalent yield compared to a 10-year certain income stream.",
-            surveyor_verification_question="Has the tenant already served written break notice (deadline ~1 November 2026), or have lease renewal/re-gear discussions started?",
+            valuation_impact="Creates void and re-letting exposure at Year 3; increases equivalent yield compared to an unbroken term.",
+            surveyor_verification_question="Has the tenant served break notice, or have renewal/re-gear discussions started?",
         ),
         ClauseRisk(
             category="Repairing Obligations",
             risk_level="High",
             source_quote="limited by reference to a photographic Schedule of Condition dated April 2024 (which notes extensive cut-edge corrosion to the south roof slope).",
-            valuation_impact="Restricts Landlord's ability to recover future roof remediation costs via dilapidations; valuer should allow a explicit capital expenditure (capex) deduction.",
-            surveyor_verification_question="Obtain the April 2024 Schedule of Condition and building survey cost estimate for treating/overcladding the south roof slope.",
+            valuation_impact="Limits recovery of roof repair costs via dilapidations; valuer should consider a capital expenditure (capex) deduction.",
+            surveyor_verification_question="Obtain the April 2024 Schedule of Condition and building cost estimate for roof remediation.",
         ),
         ClauseRisk(
             category="Rent Review Mechanism",
             risk_level="Low",
             source_quote="Upward-only open market rent review at Year 5 (1 May 2029)... disregarding tenant's voluntary fit-out works.",
-            valuation_impact="Standard institutional upward-only review pattern protecting downside income if the break is not exercised.",
-            surveyor_verification_question="Confirm £7.00/sq ft aligns with current Duncrue/Mallusk prime & secondary industrial ERVs.",
+            valuation_impact="Upward-only structure protects downside passing rent if the lease continues past review.",
+            surveyor_verification_question="Confirm £7.00/sq ft aligns with current local industrial ERVs.",
         ),
         ClauseRisk(
             category="Alienation & User Clause",
             risk_level="Medium",
             source_quote="Assignment of whole permitted with Landlord's consent... subject to an Authorised Guarantee Agreement (AGA). Subletting of part prohibited.",
-            valuation_impact="AGA provides covenant protection on assignment, though prohibition on subletting part slightly limits flexibility for larger 18,500 sq ft floorplates.",
-            surveyor_verification_question="Verify tenant covenant strength (credit check / filed accounts) to assess likelihood of assignment or break.",
+            valuation_impact="AGA supports covenant continuity on assignment, while no subletting of part limits flexibility on larger floorplates.",
+            surveyor_verification_question="Check tenant covenant strength and financial accounts to assess break and assignment risk.",
         ),
     ],
-    overall_valuation_caution="DRAFT AI TRIAGE ONLY — Requires physical inspection, full title/lease verification, and RICS Registered Valuer sign-off before adoption in any valuation calculation.",
+    overall_valuation_caution="DRAFT AI TRIAGE ONLY — Requires physical inspection, full title/lease verification, and RICS surveyor sign-off before adoption in any valuation.",
 )
 
 # ---------------------------------------------------------
-# 6. GEMINI API CALL FUNCTION
+# 6. GEMINI API CALL
 # ---------------------------------------------------------
 def analyze_lease_with_gemini(lease_text: str, sector: str, api_key: str) -> LeaseTriageReport:
     client = genai.Client(api_key=api_key)
 
     system_instruction = """
-    You are a Senior Commercial Property Valuation & Lease Advisory Assistant operating in Northern Ireland (UK).
-    Analyze the provided commercial lease extract or Heads of Terms strictly from an RICS commercial valuation perspective.
-    
+    You are a Commercial Property Valuation & Lease Advisory Assistant operating in Northern Ireland (UK).
+    Analyze the provided commercial lease extract or Heads of Terms strictly from a valuation perspective.
+
     RULES:
     1. NEVER invent or hallucinate clauses, dates, or figures not present in the text.
     2. Always quote the exact supporting phrase from the input text in 'source_quote'.
     3. Focus on valuation drivers: WAULT (to break vs expiry), net effective rent vs headline rent, service charge leakage/caps, repairing liabilities (FRI vs Schedule of Condition), and rent-review assumptions/disregards.
-    4. Note Northern Ireland statutory context (e.g., Business Tenancies (NI) Order 1996) where relevant, rather than English Landlord & Tenant Act 1954.
+    4. Note Northern Ireland statutory context (Business Tenancies (NI) Order 1996) where relevant, rather than English Landlord & Tenant Act 1954.
     5. Generate practical, specific verification questions for a chartered surveyor.
     """
 
@@ -188,7 +185,7 @@ def analyze_lease_with_gemini(lease_text: str, sector: str, api_key: str) -> Lea
 
 
 # ---------------------------------------------------------
-# 7. MARKDOWN FILE NOTE GENERATOR (FOR EXPORT)
+# 7. MARKDOWN FILE NOTE GENERATOR
 # ---------------------------------------------------------
 def build_markdown_file_note(report: LeaseTriageReport, sector: str, redacted: bool) -> str:
     timestamp = datetime.now().strftime("%d %B %Y, %H:%M")
@@ -196,7 +193,7 @@ def build_markdown_file_note(report: LeaseTriageReport, sector: str, redacted: b
         "# VALUATION & LEASE ADVISORY — PRELIMINARY RISK TRIAGE NOTE",
         f"**Generated:** {timestamp} | **Sector:** {sector} | **Local PII Redaction:** {'Enabled' if redacted else 'Disabled'}",
         "",
-        "> **GOVERNANCE NOTICE:** Automated preliminary triage only. All figures, dates, and legal interpretations must be verified against executed lease documentation and inspected by an RICS Registered Valuer.",
+        "> **GOVERNANCE NOTICE:** Automated preliminary triage only. All figures, dates, and legal interpretations must be verified against executed lease documentation and reviewed by a qualified surveyor.",
         "",
         "## 1. Executive Summary",
         report.headline_summary,
@@ -222,13 +219,14 @@ def build_markdown_file_note(report: LeaseTriageReport, sector: str, redacted: b
 
 
 # ---------------------------------------------------------
-# 8. STREAMLIT USER INTERFACE
+# 8. STREAMLIT USER INTERFACE (RENDER-SAFE)
 # ---------------------------------------------------------
 st.title("🏢 Commercial Lease & Rent-Review Risk Triage")
 st.caption(
     "Prototype Valuation Prep Tool (Northern Ireland Context) • Built to support early-stage surveyor due diligence"
 )
-    with st.sidebar:
+
+with st.sidebar:
     st.header("🛡️ Data Governance & Privacy")
     enable_redaction = st.toggle(
         "Auto-Redact Client & Property Names",
@@ -250,17 +248,12 @@ st.caption(
     st.divider()
     st.header("⚙️ Demo Mode Settings")
     api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        try:
-            api_key = st.secrets.get("GEMINI_API_KEY", "")
-        except Exception:
-            api_key = ""
     demo_fallback = st.toggle(
         "Offline Demo Fallback Mode",
         value=not bool(api_key),
         help="Uses pre-computed sample output if no API key is configured or internet is unavailable.",
     )
-# Main Two-Column Workspace
+
 col_input, col_output = st.columns([1, 1.25], gap="large")
 
 with col_input:
