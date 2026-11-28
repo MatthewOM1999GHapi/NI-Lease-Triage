@@ -321,7 +321,7 @@ def analyze_lease_with_gemini(lease_text: str, sector: str, api_key: str) -> Lea
         f"Property Sector: {sector}\n\nLease / Heads of Terms Extract:\n{lease_text}"
     )
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
